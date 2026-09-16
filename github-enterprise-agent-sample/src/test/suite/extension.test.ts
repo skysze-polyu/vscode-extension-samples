@@ -45,11 +45,12 @@ suite('Extension', () => {
 
 	test('provides the NVIDIA models', async function () {
 		this.timeout(20000);
+		// The provider discovers the live catalog from the NVIDIA API, so the
+		// retired model must be gone and a verified-live model must be present.
 		const models = await vscode.lm.selectChatModels({ vendor: 'nvidia' });
 		const ids = models.map(model => model.id);
-		for (const expected of ['meta/llama-3.3-70b-instruct', 'nvidia/llama-3.1-nemotron-70b-instruct', 'deepseek-ai/deepseek-r1', 'qwen/qwen2.5-coder-32b-instruct']) {
-			assert.ok(ids.includes(expected), `model not provided: ${expected} (got ${ids.join(', ')})`);
-		}
+		assert.ok(ids.includes('meta/llama-3.2-11b-vision-instruct'), `live model not provided (got ${ids.join(', ')})`);
+		assert.ok(!ids.includes('meta/llama-3.3-70b-instruct'), 'retired model is still provided');
 		assert.ok(models.every(model => model.vendor === 'nvidia'), `unexpected vendor: ${models.map(model => model.vendor).join(', ')}`);
 	});
 

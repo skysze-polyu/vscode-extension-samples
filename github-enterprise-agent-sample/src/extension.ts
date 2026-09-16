@@ -45,15 +45,17 @@ export function activate(context: vscode.ExtensionContext) {
 	vscode.lm.registerLanguageModelChatProvider('nvidia', new NvidiaChatModelProvider(context.secrets));
 	vscode.lm.registerLanguageModelChatProvider('mistral', new MistralChatModelProvider(context.secrets));
 
-	// API key management for the model providers
+	// API key management for the model providers. The commands accept an
+	// optional key argument so automation and tests can set a key without UI
+	// interaction; interactive callers still get the input box.
 	context.subscriptions.push(
-		vscode.commands.registerCommand('github-enterprise-agent-sample.setNvidiaApiKey', () => setApiKey(context, 'github-enterprise-agent-sample.nvidiaApiKey', 'NVIDIA')),
-		vscode.commands.registerCommand('github-enterprise-agent-sample.setMistralApiKey', () => setApiKey(context, 'github-enterprise-agent-sample.mistralApiKey', 'Mistral'))
+		vscode.commands.registerCommand('github-enterprise-agent-sample.setNvidiaApiKey', (key?: string) => setApiKey(context, 'github-enterprise-agent-sample.nvidiaApiKey', 'NVIDIA', key)),
+		vscode.commands.registerCommand('github-enterprise-agent-sample.setMistralApiKey', (key?: string) => setApiKey(context, 'github-enterprise-agent-sample.mistralApiKey', 'Mistral', key))
 	);
 }
 
-async function setApiKey(context: vscode.ExtensionContext, storageKey: string, label: string): Promise<void> {
-	const key = await vscode.window.showInputBox({
+async function setApiKey(context: vscode.ExtensionContext, storageKey: string, label: string, providedKey?: string): Promise<void> {
+	const key = providedKey ?? await vscode.window.showInputBox({
 		prompt: `Enter your ${label} API key`,
 		password: true,
 		ignoreFocusOut: true

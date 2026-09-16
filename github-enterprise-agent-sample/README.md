@@ -28,6 +28,20 @@ npm test   # compiles first, then runs the suite in VS Code 1.138.0
 
 The suite covers extension activation, command registration, chat participant and language model provider wiring (`vscode.lm.selectChatModels`), token counting, the `GitHubService` host/auth logic, agent handler behavior (free-form chat and the `/orgs` error path), and the Mistral provider's SSE streaming end-to-end against a local HTTP server (deltas, auth header, error handling, cancellation).
 
+### Real-API tests
+
+A second suite runs against the real `https://integrate.api.nvidia.com/v1` endpoint and is skipped unless `NVIDIA_API_KEY` is set:
+
+```bash
+NVIDIA_API_KEY=nvapi-... npm test
+```
+
+It verifies the full path — VS Code language model API → provider → real NVIDIA cloud — by discovering the live model catalog, streaming a real completion, and asserting that API errors surface for retired models. The key is read from the environment only and is never stored in the repository.
+
+### Dynamic model discovery
+
+The NVIDIA and Mistral providers fetch the live `/models` catalog at runtime (5-minute cache) instead of relying on a hardcoded model list, so retired or account-unavailable models never appear in the picker. A static fallback list is used when the catalog cannot be fetched.
+
 ## Try it
 
 - `@enterprise-agent /orgs` — list the organizations you belong to

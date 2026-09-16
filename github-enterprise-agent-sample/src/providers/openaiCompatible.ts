@@ -8,12 +8,22 @@ export interface OpenAICompatibleModelInfo {
 	maxOutputTokens: number;
 }
 
+// Id fragments of model families that a chat completion endpoint lists but
+// that are not chat models (embeddings, rerankers, guard models, ...).
+const NON_CHAT_ID_FRAGMENTS = [
+	'embed', 'rerank', 'retriever', 'guard', 'safety', 'topic-control',
+	'deplot', 'kosmos', 'fuyu', 'diffusion', 'calibration', 'detector', 'ocr'
+];
+
 /**
  * Minimal OpenAI-compatible chat completion client shared by the NVIDIA NIM
  * and Mistral model providers. Uses plain fetch and server-sent events, so it
  * works in the desktop and the web extension host.
  */
 export abstract class OpenAICompatibleChatModelProvider implements vscode.LanguageModelChatProvider {
+	private static readonly LIVE_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+	private liveModelsCache: { models: OpenAICompatibleModelInfo[]; fetchedAt: number } | undefined;
+
 	constructor(
 		private readonly vendor: string,
 		private readonly family: string,
@@ -24,8 +34,15 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 		private readonly apiKeyCommandTitle: string
 	) { }
 
-	provideLanguageModelChatInformation(_options: { silent: boolean }, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.LanguageModelChatInformation[]> {
-		return this.models.map(model => ({
+	async provideLanguageModelChatInformation(_options: { silent: boolean }, token: vscode.CancellationToken): Promise<vscode.LanguageModelChatInformation[]> {
+		// The model catalog of an OpenAI-compatible endpoint changes over time
+		// (models get retired and added), so a hardcoded list goes stale. The
+		// live catalog is preferred whenever it can be fetched; the static list
+		// is the fallback for offline use or endpoints that require a key for
+		// discovery while none is configured yet.
+		const live = await this.fetchLiveModels(token);
+		const models = live.length > 0 ? live : this.models;
+		return models.map(model => ({
 			id: model.id,
 			name: model.name,
 			tooltip: model.tooltip,
@@ -38,6 +55,46 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 				imageInput: false
 			}
 		}));
+	}
+
+	/**
+	 * Discovers the models that the endpoint currently serves. Returns an
+	 * empty array when the catalog cannot be fetched, so the caller falls
+	 * back to the static list.
+	 */
+	protected async fetchLiveModels(token: vscode.CancellationToken): Promise<OpenAICompatibleModelInfo[]> {
+		const cached = this.liveModelsCache;
+		if (cached && Date.now() - cached.fetchedAt < OpenAICompatibleChatModelProvider.LIVE_MODELS_CACHE_TTL_MS) {
+			return cached.models;
+		}
+
+		const apiKey = await this.secrets.get(this.secretStorageKey);
+		const headers: Record<string, string> = {};
+		if (apiKey) {
+			headers['Authorization'] = `Bearer ${apiKey}`;
+		}
+
+		try {
+			const response = await fetch(`${this.baseUrl}/models`, { headers, signal: toAbortSignal(token) });
+			if (!response.ok || !response.body) {
+				return [];
+			}
+			const catalog = await response.json() as { data?: { id?: unknown }[] };
+			const ids = (catalog.data ?? [])
+				.map(entry => entry.id)
+				.filter((id): id is string => typeof id === 'string' && !NON_CHAT_ID_FRAGMENTS.some(fragment => id.includes(fragment)));
+			const models = ids.map(id => ({
+				id,
+				name: id,
+				tooltip: `Served by ${this.vendor}.`,
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192
+			}));
+			this.liveModelsCache = { models, fetchedAt: Date.now() };
+			return models;
+		} catch {
+			return [];
+		}
 	}
 
 	async provideLanguageModelChatResponse(model: vscode.LanguageModelChatInformation, messages: readonly vscode.LanguageModelChatRequestMessage[], _options: vscode.ProvideLanguageModelChatResponseOptions, progress: vscode.Progress<vscode.LanguageModelResponsePart>, token: vscode.CancellationToken): Promise<void> {

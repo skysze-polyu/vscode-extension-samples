@@ -4,32 +4,28 @@ import { OpenAICompatibleChatModelProvider, OpenAICompatibleModelInfo } from './
 // The NVIDIA NIM API is OpenAI-compatible: https://docs.api.nvidia.com
 const NVIDIA_BASE_URL = 'https://integrate.api.nvidia.com/v1';
 
+// Fallback catalog used when the live catalog cannot be fetched. These ids
+// were verified against https://integrate.api.nvidia.com/v1; the live catalog
+// from the API is preferred at runtime because it changes over time.
 const NVIDIA_MODELS: OpenAICompatibleModelInfo[] = [
 	{
-		id: 'meta/llama-3.3-70b-instruct',
-		name: 'Llama 3.3 70B (NVIDIA)',
-		tooltip: 'Meta Llama 3.3 70B Instruct served by NVIDIA NIM.',
+		id: 'meta/llama-3.2-11b-vision-instruct',
+		name: 'Llama 3.2 11B Vision (NVIDIA)',
+		tooltip: 'Meta Llama 3.2 11B Vision Instruct served by NVIDIA NIM.',
 		maxInputTokens: 128000,
 		maxOutputTokens: 8192
 	},
 	{
-		id: 'nvidia/llama-3.1-nemotron-70b-instruct',
-		name: 'Nemotron 70B (NVIDIA)',
-		tooltip: 'NVIDIA Llama 3.1 Nemotron 70B Instruct.',
+		id: 'mistralai/mistral-nemotron',
+		name: 'Mistral Nemotron (NVIDIA)',
+		tooltip: 'Mistral Nemotron served by NVIDIA NIM.',
 		maxInputTokens: 128000,
 		maxOutputTokens: 8192
 	},
 	{
-		id: 'deepseek-ai/deepseek-r1',
-		name: 'DeepSeek R1 (NVIDIA)',
-		tooltip: 'DeepSeek R1 served by NVIDIA NIM.',
-		maxInputTokens: 128000,
-		maxOutputTokens: 8192
-	},
-	{
-		id: 'qwen/qwen2.5-coder-32b-instruct',
-		name: 'Qwen2.5 Coder 32B (NVIDIA)',
-		tooltip: 'Qwen2.5 Coder 32B Instruct served by NVIDIA NIM.',
+		id: 'nvidia/nemotron-3-super-120b-a12b',
+		name: 'Nemotron 3 Super 120B (NVIDIA)',
+		tooltip: 'NVIDIA Nemotron 3 Super 120B (reasoning model).',
 		maxInputTokens: 128000,
 		maxOutputTokens: 8192
 	}

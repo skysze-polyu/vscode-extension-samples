@@ -15,10 +15,12 @@ async function main() {
 		// Download VS Code, unzip it and run the integration tests.
 		// A short --user-data-dir keeps the IPC socket path under the
 		// 103-character Unix socket limit, which long checkout paths exceed.
+		// NVIDIA_API_KEY (when set) enables the real-API test suite.
 		await runTests({
 			extensionDevelopmentPath,
 			extensionTestsPath,
-			launchArgs: ['--user-data-dir', '/tmp/vscode-test-github-enterprise-agent']
+			launchArgs: ['--user-data-dir', '/tmp/vscode-test-github-enterprise-agent'],
+			extensionTestsEnv: { ...process.env, NVIDIA_API_KEY: process.env.NVIDIA_API_KEY } as Record<string, string | undefined>
 		});
 	} catch (err) {
 		console.error('Failed to run tests', err);
