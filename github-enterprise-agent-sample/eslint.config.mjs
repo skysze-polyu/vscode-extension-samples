@@ -48,5 +48,13 @@ export default tseslint.config(
 				}
 			]
 		}
+	},
+	{
+		// The test runner needs `import x = require(...)` because the project
+		// compiles with module Node16 and no esModuleInterop.
+		files: ['src/test/**/*.ts'],
+		rules: {
+			'@typescript-eslint/no-require-imports': 'off'
+		}
 	}
 );

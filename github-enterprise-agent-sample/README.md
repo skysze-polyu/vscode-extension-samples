@@ -18,6 +18,16 @@ A VS Code extension sample that combines four things:
 - Desktop: press `F5` (Run Extension).
 - Web: `npm run start-web`, or press `F5` with *Run Web Extension in VS Code*.
 
+## Testing
+
+The sample ships with an integration test suite that runs in a real VS Code instance (`@vscode/test-electron`):
+
+```bash
+npm test   # compiles first, then runs the suite in VS Code 1.138.0
+```
+
+The suite covers extension activation, command registration, chat participant and language model provider wiring (`vscode.lm.selectChatModels`), token counting, the `GitHubService` host/auth logic, agent handler behavior (free-form chat and the `/orgs` error path), and the Mistral provider's SSE streaming end-to-end against a local HTTP server (deltas, auth header, error handling, cancellation).
+
 ## Try it
 
 - `@enterprise-agent /orgs` — list the organizations you belong to

@@ -11,12 +11,11 @@ interface IAgentChatResult extends vscode.ChatResult {
 }
 
 /**
- * The agent app. It appears as a top-level option in the chat input when you
- * type `@`, and has a dedicated entry point via the
- * `github-enterprise-agent-sample.openAgentChat` command.
+ * The agent request handler. Exported separately so it can be tested without
+ * the chat UI.
  */
-export function registerAgent(context: vscode.ExtensionContext, github: GitHubService): vscode.Disposable {
-	const handler: vscode.ChatRequestHandler = async (request: vscode.ChatRequest, _context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<IAgentChatResult> => {
+export function createAgentHandler(github: GitHubService): vscode.ChatRequestHandler {
+	return async (request: vscode.ChatRequest, _context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<IAgentChatResult> => {
 		if (request.command === 'orgs') {
 			stream.progress('Fetching your organizations...');
 			const octokit = await github.getOctokitOrThrow();
@@ -60,8 +59,15 @@ export function registerAgent(context: vscode.ExtensionContext, github: GitHubSe
 		}
 		return { metadata: { command: '' } };
 	};
+}
 
-	const participant = vscode.chat.createChatParticipant(AGENT_PARTICIPANT_ID, handler);
+/**
+ * The agent app. It appears as a top-level option in the chat input when you
+ * type `@`, and has a dedicated entry point via the
+ * `github-enterprise-agent-sample.openAgentChat` command.
+ */
+export function registerAgent(context: vscode.ExtensionContext, github: GitHubService): vscode.Disposable {
+	const participant = vscode.chat.createChatParticipant(AGENT_PARTICIPANT_ID, createAgentHandler(github));
 	participant.followupProvider = {
 		provideFollowups(_result: IAgentChatResult, _context: vscode.ChatContext, _token: vscode.CancellationToken) {
 			return [{
