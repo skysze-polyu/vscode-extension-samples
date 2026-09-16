@@ -1,0 +1,44 @@
+# GitHub Enterprise Agent Sample
+
+A VS Code extension sample that combines four things:
+
+1. **GitHub + GitHub Enterprise integration (desktop + web)** — signs in with VS Code's built-in GitHub authentication providers and talks to the GitHub REST API with [Octokit](https://github.com/octokit/rest.js#readme). Works in desktop VS Code **and** in VS Code for the Web (vscode.dev) via the `browser` entry point.
+2. **Agent app with a dedicated entry** — a chat participant (`@enterprise-agent`) plus a dedicated command (`GitHub Enterprise Agent: Open Enterprise Agent Chat`) that opens the Chat view with the agent pre-mentioned.
+3. **NVIDIA model provider** — registers NVIDIA NIM models (OpenAI-compatible endpoint) through the LM API, so they show up in the model picker.
+4. **Mistral model provider** — registers Mistral models (OpenAI-compatible endpoint) through the LM API; the agent falls back to a Mistral model when no model is selected.
+
+## Setup
+
+- **GitHub.com** (default): nothing to configure. Run `GitHub Enterprise Agent: Show GitHub Account` and sign in.
+- **GitHub Enterprise Server**: set `githubEnterpriseAgent.host` to your GHES URL (e.g. `https://ghe.example.com`) **and** set the built-in `github-enterprise.uri` setting to the same URL, then reload. The extension uses the `github.enterprise` authentication provider and points Octokit at `https://<host>/api/v3`.
+- **Model providers**: run `GitHub Enterprise Agent: Set NVIDIA API Key` / `Set Mistral API Key` (keys are stored in VS Code's secret storage).
+
+## Run
+
+- Desktop: press `F5` (Run Extension).
+- Web: `npm run start-web`, or press `F5` with *Run Web Extension in VS Code*.
+
+## Try it
+
+- `@enterprise-agent /orgs` — list the organizations you belong to
+- `@enterprise-agent /repos <org>` — list repositories of an organization
+- `@enterprise-agent <question>` — free-form chat using the selected model
+- Command palette: `Show GitHub Account`, `List Organization Repositories`
+
+## Deploy
+
+```bash
+npx @vscode/vsce package   # produces github-enterprise-agent-sample-0.0.1.vsix
+```
+
+- **Local / desktop**: install the `.vsix` via the Extensions view (`Install from VSIX...`).
+- **Online (vscode.dev)**: the extension has a `browser` entry point, so publishing it to the Marketplace (`npx @vscode/vsce publish`) makes it available on vscode.dev automatically.
+- **Organization-internal distribution**: publish as *unlisted* on the Marketplace (only people with the link can find it), or distribute the `.vsix` file directly.
+
+## Git sync
+
+```bash
+git add github-enterprise-agent-sample
+git commit -m "Add GitHub Enterprise Agent sample"
+git push -u origin <branch>
+```
