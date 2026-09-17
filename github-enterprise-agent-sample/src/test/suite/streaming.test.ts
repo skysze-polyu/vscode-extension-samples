@@ -3,6 +3,7 @@ import * as http from 'http';
 import * as net from 'net';
 import * as vscode from 'vscode';
 import { OpenAICompatibleChatModelProvider, OpenAICompatibleModelInfo } from '../../providers/openaiCompatible';
+import { agentProtocolPrompt } from '../../providers/responses';
 
 class MockSecretStorage implements vscode.SecretStorage {
 	private readonly values = new Map<string, string>();
@@ -175,7 +176,7 @@ suite('OpenAI-compatible provider', () => {
 			assert.strictEqual(authHeaders[0], 'Bearer test-key');
 			const sent = JSON.parse(requestBodies[0]);
 			assert.strictEqual(sent.model, 'test-model');
-			assert.deepStrictEqual(sent.messages, [{ role: 'user', content: 'hi' }]);
+			assert.deepStrictEqual(sent.messages, [{ role: 'system', content: agentProtocolPrompt('') }, { role: 'user', content: 'hi' }]);
 			assert.strictEqual(sent.stream, true);
 		} finally {
 			stopServer(server);

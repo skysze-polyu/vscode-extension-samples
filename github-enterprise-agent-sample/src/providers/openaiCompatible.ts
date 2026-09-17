@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { ResponsesEvent, ResponsesOrchestrator, ResponsesSession, UpstreamTurn, agentProtocolPrompt, parseUpstreamTurn } from './responses';
+import { defaultSubagents } from '../agents/subagents';
 
 export interface OpenAICompatibleModelInfo {
 	id: string;
@@ -103,6 +105,23 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 			throw new Error(`No API key configured for ${this.vendor}. Run the "${this.apiKeyCommandTitle}" command to set one.`);
 		}
 
+		// The inference layer: every model call runs through a responses-style
+		// agent loop (session start, upstream chat/completions, subagents for
+		// search/thinking/plan/tool call/test, output) instead of a bare
+		// chat/completions passthrough.
+		const upstream: (session: ResponsesSession, token: vscode.CancellationToken) => Promise<UpstreamTurn> = async (session, upstreamToken) => {
+			const raw = await this.streamChatCompletion(model.id, session.messages, apiKey, upstreamToken);
+			return parseUpstreamTurn(raw);
+		};
+		const orchestrator = new ResponsesOrchestrator(upstream, defaultSubagents());
+		const session = orchestrator.startSession(model.id, '');
+		await orchestrator.run(session, messages.map(messageText).join('\n\n'), event => mapEventToProgress(event, progress), token);
+	}
+
+	/**
+	 * Streams one chat/completions call and returns the accumulated raw text.
+	 */
+	private async streamChatCompletion(modelId: string, messages: { role: string; content: string }[], apiKey: string, token: vscode.CancellationToken): Promise<string> {
 		const response = await fetch(`${this.baseUrl}/chat/completions`, {
 			method: 'POST',
 			headers: {
@@ -110,8 +129,8 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 				'Authorization': `Bearer ${apiKey}`
 			},
 			body: JSON.stringify({
-				model: model.id,
-				messages: messages.map(toOpenAIMessage),
+				model: modelId,
+				messages: [{ role: 'system', content: agentProtocolPrompt('') }, ...messages],
 				stream: true
 			}),
 			signal: toAbortSignal(token)
@@ -121,10 +140,11 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 			throw new Error(`${this.vendor} request failed: ${response.status} ${response.statusText}`);
 		}
 
-		// Stream the server-sent events and forward text deltas as they arrive.
+		// Stream the server-sent events and accumulate the text deltas.
 		const reader = response.body.getReader();
 		const decoder = new TextDecoder();
 		let buffer = '';
+		let text = '';
 		while (true) {
 			const { done, value } = await reader.read();
 			if (done) {
@@ -139,18 +159,19 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 				}
 				const data = line.slice(5).trim();
 				if (data === '[DONE]') {
-					return;
+					return text;
 				}
 				try {
 					const delta = JSON.parse(data).choices?.[0]?.delta?.content;
 					if (typeof delta === 'string' && delta.length > 0) {
-						progress.report(new vscode.LanguageModelTextPart(delta));
+						text += delta;
 					}
 				} catch {
 					// ignore keep-alive comments and partial frames
 				}
 			}
 		}
+		return text;
 	}
 
 	async provideTokenCount(_model: vscode.LanguageModelChatInformation, text: string | vscode.LanguageModelChatRequestMessage, _token: vscode.CancellationToken): Promise<number> {
@@ -159,9 +180,31 @@ export abstract class OpenAICompatibleChatModelProvider implements vscode.Langua
 	}
 }
 
-function toOpenAIMessage(message: vscode.LanguageModelChatRequestMessage): { role: string; content: string } {
-	const role = message.role === vscode.LanguageModelChatMessageRole.Assistant ? 'assistant' : 'user';
-	return { role, content: messageText(message) };
+/**
+ * Maps responses-style events to the VS Code language model stream, keeping
+ * the agent loop visible in the chat: thinking, plan, tool calls, results,
+ * and the final output text.
+ */
+function mapEventToProgress(event: ResponsesEvent, progress: vscode.Progress<vscode.LanguageModelResponsePart>): void {
+	switch (event.type) {
+		case 'response.reasoning_summary_text.delta':
+			progress.report(new vscode.LanguageModelTextPart(`[thinking] ${event.delta}\n`));
+			break;
+		case 'response.output_item.done':
+			if (event.item.type === 'reasoning' && event.item.summary.startsWith('plan: ')) {
+				progress.report(new vscode.LanguageModelTextPart(`[plan] ${event.item.summary.slice('plan: '.length)}\n`));
+			} else if (event.item.type === 'function_call') {
+				progress.report(new vscode.LanguageModelTextPart(`[tool: ${event.item.name}]\n`));
+			} else if (event.item.type === 'function_call_output') {
+				progress.report(new vscode.LanguageModelTextPart(`[result] ${event.item.output.slice(0, 200)}\n`));
+			}
+			break;
+		case 'response.output_text.delta':
+			progress.report(new vscode.LanguageModelTextPart(event.delta));
+			break;
+		default:
+			break;
+	}
 }
 
 function messageText(message: string | vscode.LanguageModelChatRequestMessage): string {

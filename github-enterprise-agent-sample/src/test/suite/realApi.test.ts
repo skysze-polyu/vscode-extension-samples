@@ -59,7 +59,7 @@ suite('Real NVIDIA API', function () {
 		const model = models.find(m => m.id === LIVE_MODEL_ID);
 		assert.ok(model, `model ${LIVE_MODEL_ID} not found`);
 		const response = await model.sendRequest(
-			[vscode.LanguageModelChatMessage.User('Reply with exactly: HELLO_FROM_NVIDIA')],
+			[vscode.LanguageModelChatMessage.User('Reply with exactly: HELLO_FROM_NVIDIA. Do not use any tools; reply with plain text only.')],
 			{},
 			new vscode.CancellationTokenSource().token
 		);

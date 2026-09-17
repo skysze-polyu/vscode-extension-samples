@@ -42,6 +42,17 @@ It verifies the full path — VS Code language model API → provider → real N
 
 The NVIDIA and Mistral providers fetch the live `/models` catalog at runtime (5-minute cache) instead of relying on a hardcoded model list, so retired or account-unavailable models never appear in the picker. A static fallback list is used when the catalog cannot be fetched.
 
+### Responses-style orchestration (推論層)
+
+Endpoints like `https://integrate.api.nvidia.com/v1` only serve `chat/completions` — there is no `/responses` route. This sample adds an inference layer (`src/providers/responses.ts`) that turns every model call into a **Responses-style agent loop** orchestrated client-side, so any chat/completions model gets the full agent architecture:
+
+1. **Session start** — a `response.created` event opens a session (`resp_...` id, model, instructions, message history).
+2. **Upstream** — one `chat/completions` call per iteration against the session history, with a system prompt that teaches the model a text-marker protocol (`<thinking>`, `<plan>`, `<tool name="...">`), so it works with or without function calling.
+3. **Subagents** — tool calls are executed by real subagents (`src/agents/subagents.ts`): `search` (workspace file search) and `test` (shell command), and their results are fed back upstream as the next message.
+4. **Output** — when the model stops calling tools, its answer is emitted as `output_text.delta` and the session completes with `response.completed`.
+
+The loop is capped at 5 iterations; if the cap is hit the model's last words are still surfaced. The provider maps the events onto VS Code's language model stream, so the agent transcript (thinking, plan, tool calls, results) is visible in the chat as `[thinking]`, `[plan]`, `[tool: ...]`, `[result]` lines.
+
 ## Try it
 
 - `@enterprise-agent /orgs` — list the organizations you belong to
