@@ -15,7 +15,7 @@ interface IAgentChatResult extends vscode.ChatResult {
  * the chat UI.
  */
 export function createAgentHandler(github: GitHubService): vscode.ChatRequestHandler {
-	return async (request: vscode.ChatRequest, _context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<IAgentChatResult> => {
+	return async (request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<IAgentChatResult> => {
 		if (request.command === 'orgs') {
 			stream.progress('Fetching your organizations...');
 			const octokit = await github.getOctokitOrThrow();
@@ -51,6 +51,7 @@ export function createAgentHandler(github: GitHubService): vscode.ChatRequestHan
 
 		const messages = [
 			vscode.LanguageModelChatMessage.User(`You are the Enterprise Agent for ${github.host}. Help the user with GitHub and GitHub Enterprise questions, organizations and repositories. Be concise.`),
+			...historyToMessages(context),
 			vscode.LanguageModelChatMessage.User(request.prompt)
 		];
 		const chatResponse = await model.sendRequest(messages, {}, token);
@@ -59,6 +60,29 @@ export function createAgentHandler(github: GitHubService): vscode.ChatRequestHan
 		}
 		return { metadata: { command: '' } };
 	};
+}
+
+/**
+ * Rebuilds the chat conversation history as language model messages so
+ * multi-turn conversations keep their context. Duck-typed instead of
+ * instanceof because the turn classes have private constructors and tests
+ * build plain objects.
+ */
+export function historyToMessages(context: vscode.ChatContext): vscode.LanguageModelChatMessage[] {
+	const messages: vscode.LanguageModelChatMessage[] = [];
+	for (const turn of context.history ?? []) {
+		if ('prompt' in turn) {
+			messages.push(vscode.LanguageModelChatMessage.User(turn.prompt));
+		} else if ('response' in turn) {
+			const text = turn.response
+				.map(part => part instanceof vscode.ChatResponseMarkdownPart ? part.value.value : '')
+				.join('');
+			if (text) {
+				messages.push(vscode.LanguageModelChatMessage.Assistant(text));
+			}
+		}
+	}
+	return messages;
 }
 
 /**

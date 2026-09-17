@@ -4,7 +4,7 @@ import { registerAgent } from './agent';
 import { NvidiaChatModelProvider } from './providers/nvidia';
 import { MistralChatModelProvider } from './providers/mistral';
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	// GitHub / GitHub Enterprise connection (desktop + web)
 	const github = new GitHubService(context);
 	github.initialize();
@@ -44,6 +44,17 @@ export function activate(context: vscode.ExtensionContext) {
 	// Model providers: NVIDIA NIM + Mistral (OpenAI-compatible endpoints)
 	vscode.lm.registerLanguageModelChatProvider('nvidia', new NvidiaChatModelProvider(context.secrets));
 	vscode.lm.registerLanguageModelChatProvider('mistral', new MistralChatModelProvider(context.secrets));
+
+	// Dev convenience: when the extension host is launched with NVIDIA_API_KEY
+	// in the environment (the demo launch and the test harness do this) and no
+	// key is stored yet, provision it so the provider works with zero manual
+	// setup. The key is read from the environment at runtime and never stored
+	// in the repository.
+	const nvidiaKey = process.env.NVIDIA_API_KEY;
+	if (nvidiaKey && !(await context.secrets.get('github-enterprise-agent-sample.nvidiaApiKey'))) {
+		await context.secrets.store('github-enterprise-agent-sample.nvidiaApiKey', nvidiaKey);
+		vscode.window.showInformationMessage('NVIDIA API key provisioned from the NVIDIA_API_KEY environment variable.');
+	}
 
 	// API key management for the model providers. The commands accept an
 	// optional key argument so automation and tests can set a key without UI
